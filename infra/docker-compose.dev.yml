@@ -1,0 +1,67 @@
+services:
+
+  api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+    # In dev we run the API on the host via `dotnet run`, not in Docker.
+    # Comment the above and uncomment below if you want it fully containerized in dev.
+    profiles:
+      - full
+
+  postgres:
+    ports:
+      - "5432:5432"   # exposed so Rider / DataGrip can connect directly
+
+  redis:
+    ports:
+      - "6379:6379"   # exposed for local redis-cli access
+
+  vault:
+    ports:
+      - "8200:8200"   # exposed for local vault CLI access
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: dev-root-token
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    # Override command to run in dev mode (no persistence needed locally)
+    command: vault server -dev
+
+  # ─────────────────────────────────────────
+  # REDIS COMMANDER  (dev only)
+  # ─────────────────────────────────────────
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: bsconnect-redis-commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD}
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - internal
+
+  # ─────────────────────────────────────────
+  # PGADMIN  (dev only)
+  # ─────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: bsconnect-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@bsconnect.local
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - internal
+
+  grafana:
+    ports:
+      - "3000:3000"   # exposed for local dashboard access
+
+  prometheus:
+    ports:
+      - "9090:9090"   # exposed for local query access

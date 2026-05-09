@@ -1,0 +1,177 @@
+services:
+
+  # ─────────────────────────────────────────
+  # API
+  # ─────────────────────────────────────────
+  api:
+    build:
+      context: ../BSConnect-Backend
+      dockerfile: Dockerfile
+    container_name: bsconnect-api
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__Postgres=Host=postgres;Port=5432;Database=bsconnect;Username=api_user;Password=${POSTGRES_API_PASSWORD}
+      - ConnectionStrings__Redis=redis:6379,password=${REDIS_PASSWORD}
+      - Vault__Address=http://vault:8200
+      - Vault__Token=${VAULT_TOKEN}
+      - Jwt__Issuer=${JWT_ISSUER}
+      - Jwt__Audience=${JWT_AUDIENCE}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    networks:
+      - internal
+    expose:
+      - "8080"
+
+  # ─────────────────────────────────────────
+  # POSTGRES
+  # ─────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: bsconnect-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bsconnect
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d bsconnect"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+    expose:
+      - "5432"
+
+  # ─────────────────────────────────────────
+  # REDIS
+  # ─────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: bsconnect-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 4gb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+    expose:
+      - "6379"
+
+  # ─────────────────────────────────────────
+  # VAULT
+  # ─────────────────────────────────────────
+  vault:
+    image: hashicorp/vault:latest
+    container_name: bsconnect-vault
+    restart: unless-stopped
+    command: vault server -config=/vault/config/vault.hcl
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_ADDR: http://0.0.0.0:8200
+    volumes:
+      - ./vault/vault.hcl:/vault/config/vault.hcl:ro
+      - vaultdata:/vault/data
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://127.0.0.1:8200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - internal
+    expose:
+      - "8200"
+
+  # ─────────────────────────────────────────
+  # PROMETHEUS
+  # ─────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: bsconnect-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheusdata:/prometheus
+    networks:
+      - internal
+    expose:
+      - "9090"
+
+  # ─────────────────────────────────────────
+  # GRAFANA
+  # ─────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: bsconnect-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafanadata:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - internal
+    expose:
+      - "3000"
+
+# ─────────────────────────────────────────
+# VOLUMES
+# ─────────────────────────────────────────
+volumes:
+  pgdata:
+  redisdata:
+  vaultdata:
+  prometheusdata:
+  grafanadata:
+
+# ─────────────────────────────────────────
+# NETWORKS
+# ─────────────────────────────────────────
+networks:
+  internal:
+    driver: bridge
+
+# ─────────────────────────────────────────
+# WHEN READY TO EXPOSE VIA NPM
+# Uncomment the lines below and add the
+# proxymanager_default network to the api service
+# ─────────────────────────────────────────
+#
+#  api:
+#    networks:
+#      - internal
+#      - proxymanager_default
+#
+#  proxymanager_default:
+#    external: true
