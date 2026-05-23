@@ -30,6 +30,7 @@ services:
   # ─────────────────────────────────────────
   redis-commander:
     image: rediscommander/redis-commander:latest
+    platform: linux/amd64
     container_name: bsconnect-redis-commander
     restart: unless-stopped
     environment:
@@ -49,7 +50,7 @@ services:
     container_name: bsconnect-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@bsconnect.local
+      PGADMIN_DEFAULT_EMAIL: ryker@chalodev.xyz
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
     ports:
       - "5050:80"

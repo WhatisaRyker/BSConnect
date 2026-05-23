@@ -8,9 +8,6 @@ infra/
 ├── docker-compose.dev.yml      # Dev overrides (extra tools, exposed ports)
 ├── .env.example                # Copy to .env and fill in secrets
 ├── Makefile                    # Common commands
-├── nginx/
-│   ├── nginx.conf              # Reverse proxy + WebSocket + rate limiting
-│   └── cloudflare-ips.conf     # Cloudflare IP allowlist
 ├── vault/
 │   ├── vault.hcl               # Vault server config
 │   └── init-vault.sh           # One-time init script
@@ -59,16 +56,3 @@ docker compose restart api
 | Prometheus      | http://localhost:9090  | No login            |
 | Vault UI        | http://localhost:8200  | Dev token           |
 
-## Updating Cloudflare IPs
-
-Cloudflare publishes their IP ranges at https://www.cloudflare.com/ips/
-Run this to refresh the allowlist:
-
-```bash
-echo "# Cloudflare IPv4" > nginx/cloudflare-ips.conf
-curl -s https://www.cloudflare.com/ips-v4 | while read ip; do echo "allow $ip;"; done >> nginx/cloudflare-ips.conf
-echo "# Cloudflare IPv6" >> nginx/cloudflare-ips.conf
-curl -s https://www.cloudflare.com/ips-v6 | while read ip; do echo "allow $ip;"; done >> nginx/cloudflare-ips.conf
-echo "deny all;" >> nginx/cloudflare-ips.conf
-docker compose restart nginx
-```

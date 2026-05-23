@@ -27,6 +27,7 @@ services:
         condition: service_healthy
     networks:
       - internal
+      - proxymanager_default
     expose:
       - "8080"
 
@@ -161,17 +162,5 @@ volumes:
 networks:
   internal:
     driver: bridge
-
-# ─────────────────────────────────────────
-# WHEN READY TO EXPOSE VIA NPM
-# Uncomment the lines below and add the
-# proxymanager_default network to the api service
-# ─────────────────────────────────────────
-#
-#  api:
-#    networks:
-#      - internal
-#      - proxymanager_default
-#
-#  proxymanager_default:
-#    external: true
+  proxymanager_default:
+    external: true
